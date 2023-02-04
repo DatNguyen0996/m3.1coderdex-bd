@@ -33,11 +33,42 @@ router.get("/pokemons", function (req, res, next) {
     let result = [];
     result = db;
     let filterPokemon = data;
+
+    // filter by type
+    filterPokemon.map((pokemon) => {
+      newTypes = [];
+      pokemon.types.map((type) => {
+        type === "" ? newTypes : newTypes.push(type.toLowerCase());
+      });
+      pokemon.types = newTypes;
+    });
+
     type
+      ? (filterPokemon = filterPokemon.filter((poke) =>
+          poke.types.includes(type)
+        ))
+      : filterPokemon;
+
+    //filter by search
+    let errorSearch = [];
+
+    if (search) {
+      errorSearch = filterPokemon.filter(
+        (poke) =>
+          poke.name.includes(search.toLowerCase()) || poke.id == Number(search)
+      );
+      if (errorSearch.length == 0) {
+        const exception = new Error(`Pokemon not found`);
+        exception.statusCode = 404;
+        throw exception;
+      }
+    }
+
+    search
       ? (filterPokemon = filterPokemon.filter(
           (poke) =>
-            poke.types[0].toLowerCase().includes(type) ||
-            poke.types[1].toLowerCase().includes(type)
+            poke.name.includes(search.toLowerCase()) ||
+            poke.id == Number(search)
         ))
       : filterPokemon;
 
@@ -60,78 +91,66 @@ router.get("/pokemons/:id", function (req, res, next) {
 
     let result = {};
 
-    let filterPokemon = data;
+    let filterPokemon = {
+      data: {
+        pokemon: {},
+        previousPokemon: {},
+        nextPokemon: {},
+      },
+    };
 
-    filterPokemon.map((pokemon, index) => {
-      if (Number(pokemon.id) === Number(req.params.id)) {
-        let currentId;
-        let previousId;
-        let nextId;
-        if (index === 0) {
-          currentId = index;
-          previousId = data.length - 1;
-          nextId = index + 1;
-        } else if (index + 1 === data.length) {
-          currentId = index;
-          previousId = index - 1;
-          nextId = 0;
-        } else {
-          currentId = index;
-          previousId = index - 1;
-          nextId = index + 1;
-        }
+    const targetIndex = data.findIndex(
+      (data) => Number(data.id) === Number(req.params.id)
+    );
+    // console.log(targetIndex);
 
-        result = {
-          data: {
-            pokemon: {
-              name: filterPokemon[currentId].name,
-              types: [
-                filterPokemon[currentId].types[0] === ""
-                  ? filterPokemon[currentId].types[0]
-                  : filterPokemon[currentId].types[0].toLowerCase(),
-                filterPokemon[currentId].types[1] === "" ||
-                filterPokemon[currentId].types[1] === undefined
-                  ? filterPokemon[currentId].types[1]
-                  : filterPokemon[currentId].types[1].toLowerCase(),
-              ],
-              id: filterPokemon[currentId].id,
-              url: filterPokemon[currentId].url,
-            },
-            previousPokemon: {
-              name: filterPokemon[previousId].name,
-              types: [
-                filterPokemon[previousId].types[0] === ""
-                  ? filterPokemon[previousId].types[0]
-                  : filterPokemon[previousId].types[0].toLowerCase(),
-                filterPokemon[previousId].types[1] === "" ||
-                filterPokemon[previousId].types[1] === undefined
-                  ? filterPokemon[previousId].types[1]
-                  : filterPokemon[previousId].types[1].toLowerCase(),
-              ],
-              id: filterPokemon[previousId].id,
-              url: filterPokemon[previousId].url,
-            },
-            nextPokemon: {
-              name: filterPokemon[nextId].name,
-              types: [
-                filterPokemon[nextId].types[0] === ""
-                  ? filterPokemon[nextId].types[0]
-                  : filterPokemon[nextId].types[0].toLowerCase(),
-                filterPokemon[nextId].types[1] === "" ||
-                filterPokemon[nextId].types[1] === undefined
-                  ? filterPokemon[nextId].types[1]
-                  : filterPokemon[nextId].types[1].toLowerCase(),
-              ],
-              id: filterPokemon[nextId].id,
-              url: filterPokemon[nextId].url,
-            },
-          },
-        };
-      } else {
-        return result;
-      }
-    });
-    console.log(result);
+    let previousIndex;
+    let nextIndex;
+    if (targetIndex === 0) {
+      previousIndex = data.length - 1;
+      nextIndex = targetIndex + 1;
+    } else if (targetIndex + 1 === data.length) {
+      previousIndex = targetIndex - 1;
+      nextIndex = 0;
+    } else {
+      previousIndex = targetIndex - 1;
+      nextIndex = targetIndex + 1;
+    }
+
+    if (targetIndex < 0) {
+      const exception = new Error(`Pokemon not found`);
+      exception.statusCode = 404;
+      throw exception;
+    }
+    const newTypes = (index) => {
+      let typesConvert = [];
+      data[index].types.forEach((e) => {
+        e ? typesConvert.push(e.toLowerCase()) : typesConvert;
+      });
+      return typesConvert;
+    };
+
+    filterPokemon.data.pokemon = {
+      name: data[targetIndex].name,
+      types: newTypes(targetIndex),
+      id: data[targetIndex].id,
+      url: data[targetIndex].url,
+    };
+    filterPokemon.data.previousPokemon = {
+      name: data[previousIndex].name,
+      types: newTypes(previousIndex),
+      id: data[previousIndex].id,
+      url: data[previousIndex].url,
+    };
+    filterPokemon.data.nextPokemon = {
+      name: data[nextIndex].name,
+      types: newTypes(nextIndex),
+      id: data[nextIndex].id,
+      url: data[nextIndex].url,
+    };
+    result = filterPokemon;
+    // console.log(filterPokemon.data);
+    // console.log(result);
 
     res.status(200).send(result);
   } catch (error) {
@@ -149,7 +168,7 @@ router.post("/pokemons", (req, res, next) => {
     const { data } = db;
 
     const { name, id, url, types } = req.body;
-    console.log({ name, id, url, types });
+    // console.log({ name, id, url, types });
     const pokemonType = [
       "normal",
       "fire",
@@ -186,7 +205,7 @@ router.post("/pokemons", (req, res, next) => {
     }
 
     // Pokémon's type is invalid.
-    console.log(types);
+    // console.log(types);
     let typeFormatWrite = [];
     types.map((e) => {
       if (e !== "" && e !== null) {
@@ -240,7 +259,7 @@ router.post("/pokemons", (req, res, next) => {
     const newPokemon = {
       id,
       name,
-      types: typeFormatWrite,
+      types: typeFormat,
       url,
     };
 
@@ -254,14 +273,12 @@ router.post("/pokemons", (req, res, next) => {
     //write and save to db.json
     fs.writeFileSync("db.json", db);
 
-    // console.log(newPokemon);
     res.status(200).send(newPokemon);
   } catch (error) {
     next(error);
   }
 });
 
-//update pokemon (Update only ["name", "url", "types"] )
 router.put("/pokemon/:id", (req, res, next) => {
   try {
     //Read data from db.json then parse to JSobject
@@ -320,7 +337,7 @@ router.delete("/:id", (req, res, next) => {
     db.data = data.filter(
       (pokemon) => Number(pokemon.id) !== Number(req.params.id)
     );
-    console.log(db.data);
+    // console.log(db.data);
     db = JSON.stringify(db);
     //write and save to db.json
 
